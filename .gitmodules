@@ -1,0 +1,3 @@
+[submodule "ThirdParty/e-graph"]
+	path = ThirdParty/e-graph
+	url = https://github.com/peterrudenko/e-graph.git
