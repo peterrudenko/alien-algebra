@@ -1,3 +1,9 @@
 [submodule "ThirdParty/e-graph"]
 	path = ThirdParty/e-graph
 	url = https://github.com/peterrudenko/e-graph.git
+[submodule "ThirdParty/cereal"]
+	path = ThirdParty/cereal
+	url = https://github.com/USCiLab/cereal.git
+[submodule "ThirdParty/pegtl"]
+	path = ThirdParty/pegtl
+	url = https://github.com/taocpp/PEGTL.git

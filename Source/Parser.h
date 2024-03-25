@@ -2,7 +2,7 @@
 
 #include "Common.h"
 
-#include "../ThirdParty/e-graph/EGraph.h"
+#include "EGraph.h"
 
 #include "tao/pegtl.hpp"
 #include "tao/pegtl/contrib/parse_tree.hpp"
@@ -26,22 +26,22 @@ namespace dsl
     struct spacing : star<space> {};
 
     template <typename S, typename O>
-    struct leftAssociative : seq<S, spacing, star_must<O, spacing, S, spacing>> {};
+    struct left_associative : seq<S, spacing, star_must<O, spacing, S, spacing>> {};
 
-    struct variable : ascii::ranges<'a', 'z', 'A', 'Z'> {};
+    struct variable : plus<ascii::ranges<'a', 'z', 'A', 'Z'>> {};
     struct operation : sor<
-        string<':', '>'>, string<'|', '>'>, string<'-', '<'>, string<'>', '-'>,
-        string<'=', '<', '<'>, string<'>', '>', '='>, string<'-', '<', '<'>,
+        string<'=', '<', '<'>, string<'>', '>', '='>,
+        string<'-', '<', '<'>, string<'<', '~', '>'>, string<'~', '~', '>'>,
+        string<'~', '>'>, string<':', '>'>, string<'|', '>'>, string<'-', '<'>, string<'>', '-'>,
         string<'.', '='>, string<'.', '-'>, string<'|', '-'>, string<'-', '|'>,
-        string<'~', '>'>, string<'<', '~', '>'>, string<'~', '~', '>'>,
         string<'?'>, string<'!'>, string<'~'>, string<':', ':'>, string<'@'>,
         string<'#'>, string<'$'>, string<'&'>, string<'.'>> {};
 
     struct expression;
-    struct bracketExpression : if_must<one<'('>, spacing, expression, spacing, one<')'>> {};
-    struct value : sor<variable, bracketExpression> {};
+    struct bracket_expression : if_must<one<'('>, spacing, expression, spacing, one<')'>> {};
+    struct value : sor<variable, bracket_expression> {};
 
-    struct expression : leftAssociative<value, operation> {};
+    struct expression : left_associative<value, operation> {};
 
     struct grammar : must<spacing, expression, eof> {};
 
@@ -78,9 +78,17 @@ namespace Parser
                 return;
             }
 
-            for (auto &childNode : astNode.children.front()->children)
+            const auto *firstTerm = astNode.children.front().get();
+            if (firstTerm->children.empty())
             {
-                convertAstToPattern(outPattern, *childNode);
+                outPattern.name = firstTerm->string(); // a single variable expression
+            }
+            else
+            {
+                for (auto &childNode : firstTerm->children)
+                {
+                    convertAstToPattern(outPattern, *childNode);
+                }
             }
         }
         else if (astNode.is_type<dsl::expression>())
@@ -94,11 +102,32 @@ namespace Parser
         }
         else if (astNode.is_type<dsl::operation>())
         {
+            if (!outPattern.name.empty())
+            {
+                // here we found something like a + b + c, so we'll proceed
+                // assuming left-associativity, and transform it into (a + b) + c,
+                // for that, create a child node out of the existing name
+                // and arguments, update own name and use the newly created child
+                // as the first and the only argument, then proceed parsing others:
+                assert(outPattern.arguments.size() == 2);
+
+                auto child = e::PatternTerm();
+                child.name = outPattern.name;
+                child.arguments = outPattern.arguments;
+
+                // outPattern.name = astNode.string(); happens anyway
+                outPattern.arguments = {child};
+            }
+
             outPattern.name = astNode.string();
         }
         else if (astNode.is_type<dsl::variable>())
         {
-            outPattern.arguments.push_back(astNode.string());
+            assert(outPattern.arguments.size() < 2);
+
+            e::PatternTerm term;
+            term.name = astNode.string();
+            outPattern.arguments.push_back(move(term));
         }
         else
         {
@@ -108,18 +137,18 @@ namespace Parser
 
     static String formatPatternTerm(const e::Pattern &pattern, bool wrapWithBrackets = true)
     {
-        if (const auto *patternVariable = std::get_if<e::Symbol>(&pattern))
-        {
-            return *patternVariable;
-        }
-        else if (const auto *patternTerm = std::get_if<e::PatternTerm>(&pattern))
+        if (const auto *patternTerm = std::get_if<e::PatternTerm>(&pattern))
         {
             // we only generate binary operators
-            assert(patternTerm->arguments.size() == 2);
-            const auto result = formatPatternTerm(patternTerm->arguments.front()) +
-                                " " + patternTerm->name + " " +
-                                formatPatternTerm(patternTerm->arguments.back());
-            return wrapWithBrackets ? ("(" + result + ")") : result;
+            if (patternTerm->arguments.size() == 2)
+            {
+                const auto result = formatPatternTerm(patternTerm->arguments.front()) +
+                                    " " + patternTerm->name + " " +
+                                    formatPatternTerm(patternTerm->arguments.back());
+                return wrapWithBrackets ? ("(" + result + ")") : result;
+            }
+
+            return patternTerm->name;
         }
 
         assert(false);
