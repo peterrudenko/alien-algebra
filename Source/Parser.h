@@ -1,185 +1,158 @@
 #pragma once
 
 #include "Common.h"
-
 #include "EGraph.h"
 
 #include "tao/pegtl.hpp"
 #include "tao/pegtl/contrib/parse_tree.hpp"
-namespace peg = tao::pegtl;
-namespace tree = peg::parse_tree;
-
-// defines a simple language:
-// latin letters are variables,
-// various special symbols and arrows are binary operators,
-// all operators are left-associative and have no precedence,
-// bracket expressions are supported;
-// valid expressions look like:
-// b :: (a |> (a @ c))
-// (b -< c) <~> (a . c)
-// (a $ c) ~> b
-
-namespace dsl
-{
-    using namespace peg;
-
-    struct spacing : star<space> {};
-
-    template <typename S, typename O>
-    struct left_associative : seq<S, spacing, star_must<O, spacing, S, spacing>> {};
-
-    struct variable : plus<ascii::ranges<'a', 'z', 'A', 'Z'>> {};
-    struct operation : sor<
-        string<'=', '<', '<'>, string<'>', '>', '='>,
-        string<'-', '<', '<'>, string<'<', '~', '>'>, string<'~', '~', '>'>,
-        string<'~', '>'>, string<':', '>'>, string<'|', '>'>, string<'-', '<'>, string<'>', '-'>,
-        string<'.', '='>, string<'.', '-'>, string<'|', '-'>, string<'-', '|'>,
-        string<'?'>, string<'!'>, string<'~'>, string<':', ':'>, string<'@'>,
-        string<'#'>, string<'$'>, string<'&'>, string<'.'>> {};
-
-    struct expression;
-    struct bracket_expression : if_must<one<'('>, spacing, expression, spacing, one<')'>> {};
-    struct value : sor<variable, bracket_expression> {};
-
-    struct expression : left_associative<value, operation> {};
-
-    struct grammar : must<spacing, expression, eof> {};
-
-    template <typename Rule>
-    struct selector : tree::selector<Rule,
-        tree::store_content::on<variable, operation>,
-        tree::fold_one::on<value, expression>> {};
-
-    struct node : tree::basic_node<node> {};
-}
 
 namespace Parser
 {
-    using Input = peg::string_input<peg::tracking_mode::eager, peg::eol::lf_crlf, std::string>;
+namespace Ast
+{
+    using namespace tao::pegtl;
+    using namespace tao::pegtl::parse_tree;
 
-    template <typename Input>
-    int validate(Input &input)
+    using Symbol = plus<ascii::ranges<'a', 'z', 'A', 'Z', '0', '9'>>;
+    struct Term : Symbol {};
+    struct PatternVariable : seq<one<'$'>, Symbol> {};
+    struct Operation : sor<
+        // :> |> -< >- =<< -<< |- -| ~> <~>  ~~> ? ! ~ :: @ # $ & .
+        string<':', '>'>, string<'|', '>'>, string<'-', '<'>, string<'>', '-'>,
+        string<'=', '<', '<'>, string<'-', '<', '<'>, string<'|', '-'>, string<'-', '|'>,
+        string<'~', '>'>, string<'<', '~', '>'>, string<'~', '~', '>'>,
+        string<'?'>, string<'!'>, string<'~'>, string<':', ':'>,
+        string<'@'>, string<'#'>, string<'$'>, string<'&'>, string<'.'>,
+        // ⇌ ⥢ ⥤ ⥃ ⥄ ⤝ ⤞ ⬷ ⤐ ➻ ⇜ ⇝ ↜ ↝ ↫ ↬ ⬸ ⤑ ⤙ ⤚ ⥈ ⬿ ⤳ ⥊ ⥐ ↽ ⇀ ⤾ ⤿ ⤸ ⤹ ⤻ ∴ ∵ ∷ ∺ ∻ ≀ ⤜
+        utf8::one<0x21cc>, utf8::one<0x2962>, utf8::one<0x2964>, utf8::one<0x2943>,
+        utf8::one<0x2944>, utf8::one<0x291d>, utf8::one<0x291e>, utf8::one<0x2b37>,
+        utf8::one<0x2910>, utf8::one<0x27bb>, utf8::one<0x21dc>, utf8::one<0x21dd>,
+        utf8::one<0x219c>, utf8::one<0x219d>, utf8::one<0x21ab>, utf8::one<0x21ac>,
+        utf8::one<0x2b38>, utf8::one<0x2911>, utf8::one<0x2919>, utf8::one<0x291a>,
+        utf8::one<0x2948>, utf8::one<0x2b3f>, utf8::one<0x2933>, utf8::one<0x294a>,
+        utf8::one<0x2950>, utf8::one<0x21bd>, utf8::one<0x21c0>, utf8::one<0x293e>,
+        utf8::one<0x293f>, utf8::one<0x2938>, utf8::one<0x2939>, utf8::one<0x293b>,
+        utf8::one<0x2234>, utf8::one<0x2235>, utf8::one<0x2237>, utf8::one<0x223a>,
+        utf8::one<0x223b>, utf8::one<0x2240>, utf8::one<0x291c>> {};
+
+    struct Arrow : string<'=', '>'> {};
+    struct Spacing : star<space> {};
+
+    struct Expression;
+    struct BracketExpression : if_must<one<'('>, Spacing, Expression, Spacing, one<')'>> {};
+    struct Value : sor<PatternVariable, Term, BracketExpression> {};
+
+    template <typename S, typename O>
+    struct LeftAssociative : seq<S, Spacing, star_must<O, Spacing, S, Spacing>> {};
+
+    struct Expression : LeftAssociative<Value, Operation> {};
+    struct RewriteRuleOrExpression : LeftAssociative<Expression, Arrow> {};
+
+    struct Grammar : must<Spacing, RewriteRuleOrExpression, eof> {};
+
+    template <typename Rule>
+    struct Selector : selector<Rule,
+        store_content::on<Term, PatternVariable, Operation>,
+        fold_one::on<Value, Expression>,
+        discard_empty::on<Arrow>> {};
+
+    struct Node : basic_node<Node> {};
+} // namespace Ast
+
+// if customOperationSymbol is not empty, then all operation names
+// in the expression will be replaced with it, which is useful for describing
+// rewrite rules for specific operations in a template-like string format
+e::Pattern makePattern(const Ast::Node &astNode, const e::Symbol &customOperationSymbol)
+{
+    if (astNode.is_root())
     {
-        return peg::parse<dsl::grammar>(input);
+        assert(!astNode.children.empty());
+        return makePattern(*astNode.children.front(), customOperationSymbol);
     }
-
-    template <typename Input>
-    auto parse(Input &input)
+    else if (astNode.is_type<Ast::Expression>())
     {
-        return tree::parse<dsl::grammar, dsl::node, dsl::selector>(input);
-    }
+        e::PatternTerm term;
 
-    static void convertAstToPattern(e::PatternTerm &outPattern, const dsl::node &astNode)
-    {
-        if (astNode.is_root())
+        assert(astNode.children.size() >= 3);
+        for (const auto &childNode : astNode.children)
         {
-            if (astNode.children.empty())
+            if (childNode->is_type<Ast::Operation>())
             {
-                return;
-            }
+                if (term.arguments.size() == 2)
+                {
+                    // here we found something like a + b + c, so we'll proceed
+                    // assuming left-associativity, and transform it into (a + b) + c,
+                    // for that, create a child node out of the existing name
+                    // and arguments, update own name and use the newly created child
+                    // as the first and the only argument, then proceed parsing others:
 
-            const auto *firstTerm = astNode.children.front().get();
-            if (firstTerm->children.empty())
-            {
-                outPattern.name = firstTerm->string(); // a single variable expression
+                    auto childTerm = e::PatternTerm(term.name, move(term.arguments));
+                    // term.name = ...; happens anyway
+                    term.arguments = {move(childTerm)};
+                }
+
+                term.name = customOperationSymbol.empty() ?
+                    childNode->string() : customOperationSymbol;
             }
             else
             {
-                for (auto &childNode : firstTerm->children)
-                {
-                    convertAstToPattern(outPattern, *childNode);
-                }
+                term.arguments.push_back(makePattern(*childNode, customOperationSymbol));
             }
         }
-        else if (astNode.is_type<dsl::expression>())
-        {
-            outPattern.arguments.push_back({e::PatternTerm()});
 
-            for (auto &childNode : astNode.children)
-            {
-                convertAstToPattern(*outPattern.arguments.back().term, *childNode);
-            }
-        }
-        else if (astNode.is_type<dsl::operation>())
-        {
-            if (!outPattern.name.empty())
-            {
-                // here we found something like a + b + c, so we'll proceed
-                // assuming left-associativity, and transform it into (a + b) + c,
-                // for that, create a child node out of the existing name
-                // and arguments, update own name and use the newly created child
-                // as the first and the only argument, then proceed parsing others:
-                assert(outPattern.arguments.size() == 2);
-
-                auto childTerm = e::PatternTerm(outPattern.name, move(outPattern.arguments));
-                // outPattern.name = astNode.string(); happens anyway
-                outPattern.arguments = {move(childTerm)};
-            }
-
-            outPattern.name = astNode.string();
-        }
-        else if (astNode.is_type<dsl::variable>())
-        {
-            assert(outPattern.arguments.size() < 2);
-            e::PatternTerm term(astNode.string(), {});
-            outPattern.arguments.push_back(move(term));
-        }
-        else
-        {
-            assert(false);
-        }
+        return term;
     }
-
-    static String formatPatternTerm(const e::PatternTerm &patternTerm, bool wrapWithBrackets = true)
+    else if (astNode.is_type<Ast::Term>())
     {
-        // we only generate binary operators
-        if (patternTerm.arguments.size() == 2)
-        {
-            const auto result = formatPatternTerm(*patternTerm.arguments.front().term) +
-                                " " + patternTerm.name + " " +
-                                formatPatternTerm(*patternTerm.arguments.back().term);
-            return wrapWithBrackets ? ("(" + result + ")") : result;
-        }
-
-        return patternTerm.name;
+        e::PatternTerm term;
+        term.name = astNode.string();
+        return term;
     }
+    else if (astNode.is_type<Ast::PatternVariable>())
+    {
+        e::PatternVariable variable = astNode.string();
+        return variable;
+    }
+
+    assert(false);
 }
 
-/*
-#include <tao/pegtl/contrib/parse_tree_to_dot.hpp>
-
-int main(int argc, char **argv)
+e::RewriteRule makeRewriteRule(const Ast::Node &astNode, const e::Symbol &customOperationSymbol)
 {
-    if (argc < 1)
-    {
-        // example: test "b :: (a |> (a @ c))" | dot -Tsvg -o parse_tree.svg
-        return 1;
-    }
-
-    argv_input in(argv, 1);
-
-    try
-    {
-        if (const auto root = Parser::parse(in))
-        {
-            //e::PatternTerm pattern;
-            //Parser::convertAstToPattern(pattern, *root.get());
-            //std::cout << Parser::formatPatternTerm(pattern, false) << std::endl;
-
-            parse_tree::print_dot(std::cout, *root);
-            return 0;
-        }
-    }
-    catch( const parse_error &e )
-    {
-        const auto p = e.positions().front();
-        std::cerr << e.what() << '\n'
-                  << in.line_at( p ) << '\n'
-                  << std::setw( p.column ) << '^' << std::endl;
-        return 1;
-    }
-
-    std::cerr << "parse error" << std::endl;
-    return 1;
+    assert(astNode.is_root());
+    assert(astNode.children.size() == 2);
+    e::RewriteRule rule;
+    rule.leftHand = makePattern(*astNode.children.front(), customOperationSymbol);
+    rule.rightHand = makePattern(*astNode.children.back(), customOperationSymbol);
+    return rule;
 }
-*/
+
+e::RewriteRule makeRewriteRule(const std::string &expression, const std::string &customOperationSymbol)
+{
+    using namespace tao::pegtl;
+    string_input input(expression, "");
+    const auto node = parse_tree::parse<Ast::Grammar, Ast::Node, Ast::Selector>(input);
+    return makeRewriteRule(*node, customOperationSymbol);
+}
+
+e::Pattern makePattern(const std::string &expression)
+{
+    using namespace tao::pegtl;
+    string_input input(expression, "");
+    const auto node = parse_tree::parse<Ast::Grammar, Ast::Node, Ast::Selector>(input);
+    return makePattern(*node, {});
+}
+
+String formatPatternTerm(const e::PatternTerm &patternTerm, bool wrapWithBrackets = true)
+{
+    // we only generate binary operators
+    if (patternTerm.arguments.size() == 2)
+    {
+        const auto result = formatPatternTerm(*patternTerm.arguments.front().term) +
+            " " + patternTerm.name + " " + formatPatternTerm(*patternTerm.arguments.back().term);
+        return wrapWithBrackets ? ("(" + result + ")") : result;
+    }
+
+    return patternTerm.name;
+}
+} // namespace Language

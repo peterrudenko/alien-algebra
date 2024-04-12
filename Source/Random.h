@@ -22,6 +22,13 @@ public:
     }
 
     template <typename T>
+    T pickOne(const Vector<T> &origin)
+    {
+        assert(!origin.empty());
+        return origin[this->getRandomInt(0, origin.size() - 1)];
+    }
+
+    template <typename T>
     T pickOneUnique(const HashSet<T> &origin, HashSet<T> &used)
     {
         assert(!origin.empty());

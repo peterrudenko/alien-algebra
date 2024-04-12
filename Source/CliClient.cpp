@@ -14,8 +14,7 @@ public:
         //std::cout << "State: " << stats.internalState << std::endl;
         std::cout << "===========" << std::endl;
         std::cout << "E-graph classes: " << stats.numRootClasses << std::endl;
-        std::cout << "Root classes in hints: " << stats.numRootClassesInHints << std::endl;
-        std::cout << "Hints collected: " << stats.numHints << std::endl;
+        std::cout << "Num levels: " << stats.numLevels << std::endl;
         std::cout << "Generation: " << stats.numGenerationAttempts << std::endl;
         std::cout << "Gen time: " << stats.generationTimeMs << "ms" << std::endl;
         std::cout << "-----------" << std::endl;

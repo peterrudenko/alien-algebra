@@ -2,7 +2,6 @@
 
 #include "Common.h"
 #include "Random.h"
-
 #include "EGraph.h"
 
 // Helper classes used to extract random expressions
@@ -34,6 +33,8 @@ struct Hint final
 
     int astDepth = 0;
     String formatted;
+
+    HashSet<e::ClassId> usedLeafIds;
     HashSet<e::Symbol> usedSymbols;
     HashSet<e::Symbol> usedTermSymbols;
     HashSet<e::Symbol> usedOperationSymbols;
@@ -46,6 +47,19 @@ struct Hint final
             if (!contains(knownOperations, usedSymbol))
             {
                 result++;
+            }
+        }
+        return result;
+    }
+
+    Vector<e::Symbol> getNewOperations(const HashSet<e::Symbol> &knownOperations)
+    {
+        Vector<e::Symbol> result;
+        for (const auto &usedSymbol : this->usedOperationSymbols)
+        {
+            if (!contains(knownOperations, usedSymbol))
+            {
+                result.push_back(usedSymbol);
             }
         }
         return result;
@@ -103,7 +117,7 @@ public:
             // so instead will just pick random routes many times and deduplicate;
             // this class has its own pseudo-random generator with the default seed,
             // so hints collection will always be the same on the same graph.
-            for (int i = 0; i < 512; ++i)
+            for (int i = 0; i < 256; ++i)
             {
                 Hint::Ptr expression = make<Hint>(termPtr->name);
                 expression->rootId = this->eGraph.find(leafId);
@@ -130,19 +144,13 @@ public:
         return result;
     }
 
-private:
-
-    auto pickRandomSubterm(const Vector<e::Term::Ptr> &subterms)
-    {
-        assert(!subterms.empty());
-        return subterms[this->random.getRandomInt(0, subterms.size() - 1)];
-    }
-
     bool collectExpressions(Hint::Ptr expression, Hint::AstNode &parentAstNode, e::Term::Ptr term)
     {
         bool hasResult = true;
 
+        expression->usedLeafIds.insert(this->eGraph.termsLookup.at(term));
         expression->usedSymbols.insert(term->name);
+
         if (term->childrenIds.empty())
         {
             expression->usedTermSymbols.insert(term->name);
@@ -161,21 +169,21 @@ private:
                     continue;
                 }
 
-                const auto &subTerms = classPtr->terms;
-                if (subTerms.empty())
+                if (classPtr->terms.empty())
                 {
                     assert(false); // the e-graph has probably not been rebuilt
                     return false;
                 }
 
-                const auto randomSubTerm = this->pickRandomSubterm(subTerms);
+                const auto randomSubTerm = this->random.pickOne(classPtr->terms);
                 assert(randomSubTerm->childrenIds.size() == 2 || randomSubTerm->childrenIds.empty());
 
                 // I'm not 100% sure if this is a correct condition,
-                // but hopefully it should work: if we've already added that symbol,
-                // and it has more sub-terms, we're likely to end up in a loop. I guess.
+                // but hopefully it should work: if we've already added that term,
+                // and it is an operation (i.e. has more sub-terms),
+                // we're likely to end up in a loop. I guess.
                 const bool isLoop = !randomSubTerm->childrenIds.empty() &&
-                                    contains(expression->usedSymbols, randomSubTerm->name);
+                    contains(expression->usedLeafIds, this->eGraph.termsLookup.at(randomSubTerm));
 
                 if (isLoop)
                 {
@@ -183,7 +191,8 @@ private:
                 }
 
                 parentAstNode.children.push_back(Hint::AstNode(randomSubTerm->name));
-                hasResult = hasResult && this->collectExpressions(expression, parentAstNode.children.back(), randomSubTerm);
+                hasResult = hasResult && this->collectExpressions(expression,
+                    parentAstNode.children.back(), randomSubTerm);
             }
         }
 
