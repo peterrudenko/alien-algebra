@@ -43,7 +43,7 @@ struct Hint final
         int result = 0;
         for (const auto &usedSymbol : this->usedOperationSymbols)
         {
-            if (!knownOperations.contains(usedSymbol))
+            if (!contains(knownOperations, usedSymbol))
             {
                 result++;
             }
@@ -119,7 +119,7 @@ public:
         HashMap<e::ClassId, Vector<Hint::Ptr>> result;
         for (const auto &[formatted, expression] : expressions)
         {
-            if (!result.contains(expression->rootId))
+            if (!contains(result, expression->rootId))
             {
                 result[expression->rootId] = {};
             }
@@ -175,7 +175,7 @@ private:
                 // but hopefully it should work: if we've already added that symbol,
                 // and it has more sub-terms, we're likely to end up in a loop. I guess.
                 const bool isLoop = !randomSubTerm->childrenIds.empty() &&
-                                    expression->usedSymbols.contains(randomSubTerm->name);
+                                    contains(expression->usedSymbols, randomSubTerm->name);
 
                 if (isLoop)
                 {

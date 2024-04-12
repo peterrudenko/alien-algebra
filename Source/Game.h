@@ -8,9 +8,10 @@
 #include "Serialization.h"
 
 #include "EGraph.h"
+
 using e::ClassId;
-using e::makePatternTerm;
 using e::RewriteRule;
+using e::PatternTerm;
 using e::Symbol;
 
 class Game
@@ -70,7 +71,7 @@ protected:
 
             // debug/cheat mode:
             /*
-            this->onShowHint("----------- (" + std::to_string(it.second.size()) + ") -----------");
+            this->onShowHint("----------- (" + std::to_string(it.first) + ") -----------");
             for (const auto &hint : it.second)
             {
                 this->onShowHint(hint->formatted);
@@ -110,7 +111,7 @@ protected:
             for (const auto &it : this->hints)
             {
                 assert(this->eGraph.find(it.first) == it.first);
-                if (!this->questClasses[this->currentQuest].contains(it.first))
+                if (!contains(this->questClasses[this->currentQuest], it.first))
                 {
                     continue;
                 }
@@ -379,9 +380,9 @@ protected:
         }
 
         {
-            SteadyClock clock;
+            //SteadyClock clock;
 
-            for (int i = 0; i < 32; ++i)
+            for (int i = 0; i < 64; ++i)
             {
                 for (const auto &rule : rewriteRules)
                 {
@@ -395,7 +396,7 @@ protected:
                 }
             }
 
-            std::cout << "Rewriting: " << clock.getMillisecondsElapsed() << "ms" << std::endl;
+            //std::cout << "Rewriting: " << clock.getMillisecondsElapsed() << "ms" << std::endl;
         }
 
         for (const auto &leafIds : questsLeafIds)
@@ -409,10 +410,10 @@ protected:
         }
 
         {
-            SteadyClock clock;
+            //SteadyClock clock;
             HintsExtractor hintsExtractor(this->eGraph);
             this->hints = hintsExtractor.extract();
-            std::cout << "HintsExtractor: " << clock.getMillisecondsElapsed() << "ms" << std::endl;
+            //std::cout << "HintsExtractor: " << clock.getMillisecondsElapsed() << "ms" << std::endl;
         }
 
         return true;
@@ -450,11 +451,11 @@ protected:
         {
             if (const auto root = Parser::parse(input))
             {
-                e::PatternTerm pattern;
-                Parser::convertAstToPattern(pattern, *root);
-                const auto formattedAnswer = Parser::formatPatternTerm(pattern, false);
+                PatternTerm patternTerm;
+                Parser::convertAstToPattern(patternTerm, *root);
+                const auto formattedAnswer = Parser::formatPatternTerm(patternTerm, false);
 
-                if (this->acceptedAnswers.contains(formattedAnswer))
+                if (contains(this->acceptedAnswers, formattedAnswer))
                 {
                     // todo give a hint?
                     return;
@@ -464,7 +465,7 @@ protected:
                 for (const auto &[classId, _classPtr] : this->eGraph.classes)
                 {
                     isValidAnswer = isValidAnswer ||
-                                    (classId == this->question->rootId && this->matchPatternTerm(pattern, classId));
+                                    (classId == this->question->rootId && this->matchPatternTerm(patternTerm, classId));
                 }
 
                 if (isValidAnswer)
@@ -485,12 +486,12 @@ protected:
                 // not a valid answer, try to give a hint
                 for (const auto &[classId, _classPtr] : this->eGraph.classes)
                 {
-                    if (!this->matchPatternTerm(pattern, classId))
+                    if (!this->matchPatternTerm(patternTerm, classId))
                     {
                         continue;
                     }
 
-                    if (!this->hints.contains(classId))
+                    if (!contains(this->hints, classId))
                     {
                         continue;
                     }
@@ -531,12 +532,11 @@ private:
         return {};
     }
 
-    bool matchPatternTerm(const e::Pattern &pattern, ClassId classId)
+    bool matchPatternTerm(const PatternTerm &patternTerm, ClassId classId)
     {
         const auto rootId = this->eGraph.find(classId);
-        assert(this->eGraph.classes.contains(rootId));
+        assert(contains(this->eGraph.classes, rootId));
 
-        const auto &patternTerm = std::get<e::PatternTerm>(pattern);
         for (const auto &term : this->eGraph.classes.at(rootId)->terms)
         {
             if (term->name != patternTerm.name || term->childrenIds.size() != patternTerm.arguments.size())
@@ -547,7 +547,9 @@ private:
             bool childrenMatch = true;
             for (int i = 0; i < patternTerm.arguments.size(); ++i)
             {
-                childrenMatch = childrenMatch && this->matchPatternTerm(patternTerm.arguments[i], term->childrenIds[i]);
+                assert(patternTerm.arguments[i].term.get() != nullptr);
+                childrenMatch = childrenMatch &&
+                    this->matchPatternTerm(*patternTerm.arguments[i].term, term->childrenIds[i]);
             }
 
             if (childrenMatch)
@@ -570,7 +572,7 @@ private:
         static RewriteRule makeIdentityRule(const Symbol &operation)
         {
             RewriteRule rule;
-            rule.leftHand = e::makePatternTerm(operation, {x, y});
+            rule.leftHand = PatternTerm(operation, {{x}, {y}});
             rule.rightHand = x;
             return rule;
         }
@@ -578,25 +580,15 @@ private:
         static RewriteRule makeIdentityRule(const Symbol &operation, const Symbol &term)
         {
             RewriteRule rule;
-            rule.leftHand = e::makePatternTerm(operation, {x, e::makePatternTerm(term)});
+            rule.leftHand = PatternTerm(operation, {{x}, PatternTerm(term, {})});
             rule.rightHand = x;
-            return rule;
-        }
-
-        static RewriteRule makeIdentityRule(const Symbol &operation, const Symbol &term1, const Symbol &term2)
-        {
-            RewriteRule rule;
-            const auto patternTerm1 = e::makePatternTerm(term1);
-            const auto patternTerm2 = e::makePatternTerm(term2);
-            rule.leftHand = e::makePatternTerm(operation, {patternTerm1, patternTerm2});
-            rule.rightHand = patternTerm1;
             return rule;
         }
 
         static RewriteRule makeZeroRule(const Symbol &operation)
         {
             RewriteRule rule;
-            rule.leftHand = e::makePatternTerm(operation, {x, y});
+            rule.leftHand = PatternTerm(operation, {{x}, {y}});
             rule.rightHand = y;
             return rule;
         }
@@ -604,26 +596,15 @@ private:
         static RewriteRule makeZeroRule(const Symbol &operation, const Symbol &term)
         {
             RewriteRule rule;
-            const auto patternTerm = e::makePatternTerm(term);
-            rule.leftHand = e::makePatternTerm(operation, {x, patternTerm});
-            rule.rightHand = patternTerm;
-            return rule;
-        }
-
-        static RewriteRule makeZeroRule(const Symbol &operation, const Symbol &term1, const Symbol &term2)
-        {
-            RewriteRule rule;
-            const auto patternTerm1 = e::makePatternTerm(term1);
-            const auto patternTerm2 = e::makePatternTerm(term2);
-            rule.leftHand = e::makePatternTerm(operation, {patternTerm1, patternTerm2});
-            rule.rightHand = patternTerm2;
+            rule.leftHand = PatternTerm(operation, {{x}, PatternTerm(term, {})});
+            rule.rightHand = PatternTerm(term, {});
             return rule;
         }
 
         static RewriteRule makeIdempotenceRule(const Symbol &operation)
         {
             RewriteRule rule;
-            rule.leftHand = e::makePatternTerm(operation, {x, x});
+            rule.leftHand = PatternTerm(operation, {{x}, {x}});
             rule.rightHand = x;
             return rule;
         }
@@ -631,44 +612,40 @@ private:
         static RewriteRule makeIdempotenceRule(const Symbol &operation, const Symbol &term)
         {
             RewriteRule rule;
-            const auto patternTerm = e::makePatternTerm(term);
-            rule.leftHand = e::makePatternTerm(operation, {patternTerm, patternTerm});
-            rule.rightHand = patternTerm;
+            rule.leftHand = PatternTerm(operation, {PatternTerm(term, {}), PatternTerm(term, {})});
+            rule.rightHand = PatternTerm(term, {});
             return rule;
         }
 
         static RewriteRule makeCommutativityRule(const Symbol &operation)
         {
             RewriteRule rule;
-            rule.leftHand = e::makePatternTerm(operation, {x, y});
-            rule.rightHand = e::makePatternTerm(operation, {y, x});
+            rule.leftHand = PatternTerm(operation, {{x}, {y}});
+            rule.rightHand = PatternTerm(operation, {{y}, {x}});
             return rule;
         }
 
         static RewriteRule makeCommutativityRule(const Symbol &operation, const Symbol &term)
         {
             RewriteRule rule;
-            const auto patternTerm = e::makePatternTerm(term);
-            rule.leftHand = e::makePatternTerm(operation, {x, patternTerm});
-            rule.rightHand = e::makePatternTerm(operation, {patternTerm, x});
+            rule.leftHand = PatternTerm(operation, {{x}, PatternTerm(term, {})});
+            rule.rightHand = PatternTerm(operation, {PatternTerm(term, {}), {x}});
             return rule;
         }
 
         static RewriteRule makeCommutativityRule(const Symbol &operation, const Symbol &term1, const Symbol &term2)
         {
             RewriteRule rule;
-            const auto patternTerm1 = e::makePatternTerm(term1);
-            const auto patternTerm2 = e::makePatternTerm(term2);
-            rule.leftHand = e::makePatternTerm(operation, {patternTerm1, patternTerm2});
-            rule.rightHand = e::makePatternTerm(operation, {patternTerm2, patternTerm1});
+            rule.leftHand = PatternTerm(operation, {PatternTerm(term1, {}), PatternTerm(term2, {})});
+            rule.rightHand = PatternTerm(operation, {PatternTerm(term2, {}), PatternTerm(term1, {})});
             return rule;
         }
 
         static RewriteRule makeAssociativityRule(const Symbol &operation)
         {
             RewriteRule rule;
-            rule.leftHand = e::makePatternTerm(operation, {e::makePatternTerm(operation, {x, y}), z});
-            rule.rightHand = e::makePatternTerm(operation, {x, e::makePatternTerm(operation, {y, z})});
+            rule.leftHand = PatternTerm(operation, {PatternTerm(operation, {{x}, {y}}), {z}});
+            rule.rightHand = PatternTerm(operation, {{x}, PatternTerm(operation, {{y}, {z}})});
             return rule;
         }
 
@@ -676,8 +653,8 @@ private:
         {
             RewriteRule rule;
             assert(operation1 != operation2);
-            rule.leftHand = e::makePatternTerm(operation1, {x, e::makePatternTerm(operation2, {y, z})});
-            rule.rightHand = e::makePatternTerm(operation2, {e::makePatternTerm(operation1, {x, y}), e::makePatternTerm(operation1, {x, z})});
+            rule.leftHand = PatternTerm(operation1, {{x}, PatternTerm(operation2, {{y}, {z}})});
+            rule.rightHand = PatternTerm(operation2, {PatternTerm(operation1, {{x}, {y}}), PatternTerm(operation1, {{x}, {z}})});
             return rule;
         }
     };

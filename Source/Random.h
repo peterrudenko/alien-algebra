@@ -33,7 +33,7 @@ public:
         while (true)
         {
             const auto element = this->pickOne(origin);
-            if (!used.contains(element))
+            if (!contains(used, element))
             {
                 used.insert(element);
                 return element;
@@ -51,7 +51,7 @@ public:
         while (set.size() != numElements)
         {
             const auto element = origin[this->getRandomInt(0, origin.size() - 1)];
-            if (!used.contains(element))
+            if (!contains(used, element))
             {
                 set.insert(element);
                 used.insert(element);

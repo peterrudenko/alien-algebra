@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include <limits>
 #include <chrono>
 #include <stack>
 #include <unordered_map>
@@ -42,6 +43,12 @@ using uint8 = uint8_t;
 using uint16 = uint16_t;
 using uint32 = uint32_t;
 using uint64 = uint64_t;
+
+template <typename C, typename K>
+inline bool contains(const C &container, const K &key)
+{
+    return container.find(key) != container.end();
+}
 
 class SteadyClock final
 {

@@ -93,11 +93,11 @@ namespace Parser
         }
         else if (astNode.is_type<dsl::expression>())
         {
-            outPattern.arguments.push_back(e::PatternTerm());
+            outPattern.arguments.push_back({e::PatternTerm()});
 
             for (auto &childNode : astNode.children)
             {
-                convertAstToPattern(std::get<e::PatternTerm>(outPattern.arguments.back()), *childNode);
+                convertAstToPattern(*outPattern.arguments.back().term, *childNode);
             }
         }
         else if (astNode.is_type<dsl::operation>())
@@ -111,12 +111,9 @@ namespace Parser
                 // as the first and the only argument, then proceed parsing others:
                 assert(outPattern.arguments.size() == 2);
 
-                auto child = e::PatternTerm();
-                child.name = outPattern.name;
-                child.arguments = outPattern.arguments;
-
+                auto childTerm = e::PatternTerm(outPattern.name, move(outPattern.arguments));
                 // outPattern.name = astNode.string(); happens anyway
-                outPattern.arguments = {child};
+                outPattern.arguments = {move(childTerm)};
             }
 
             outPattern.name = astNode.string();
@@ -124,9 +121,7 @@ namespace Parser
         else if (astNode.is_type<dsl::variable>())
         {
             assert(outPattern.arguments.size() < 2);
-
-            e::PatternTerm term;
-            term.name = astNode.string();
+            e::PatternTerm term(astNode.string(), {});
             outPattern.arguments.push_back(move(term));
         }
         else
@@ -135,24 +130,18 @@ namespace Parser
         }
     }
 
-    static String formatPatternTerm(const e::Pattern &pattern, bool wrapWithBrackets = true)
+    static String formatPatternTerm(const e::PatternTerm &patternTerm, bool wrapWithBrackets = true)
     {
-        if (const auto *patternTerm = std::get_if<e::PatternTerm>(&pattern))
+        // we only generate binary operators
+        if (patternTerm.arguments.size() == 2)
         {
-            // we only generate binary operators
-            if (patternTerm->arguments.size() == 2)
-            {
-                const auto result = formatPatternTerm(patternTerm->arguments.front()) +
-                                    " " + patternTerm->name + " " +
-                                    formatPatternTerm(patternTerm->arguments.back());
-                return wrapWithBrackets ? ("(" + result + ")") : result;
-            }
-
-            return patternTerm->name;
+            const auto result = formatPatternTerm(*patternTerm.arguments.front().term) +
+                                " " + patternTerm.name + " " +
+                                formatPatternTerm(*patternTerm.arguments.back().term);
+            return wrapWithBrackets ? ("(" + result + ")") : result;
         }
 
-        assert(false);
-        return {};
+        return patternTerm.name;
     }
 }
 

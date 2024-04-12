@@ -2,15 +2,16 @@
 #include "Common.h"
 #include "Game.h"
 #include <iostream>
+#include <ostream>
 
-class CLIGame final : public Game
+class CliClient final : public Game
 {
 public:
 
     void onShowLevelInfo(const Game::Stats &stats) override
     {
         std::cout << "Seed: " << stats.seed << std::endl;
-        std::cout << "State: " << stats.internalState << std::endl;
+        //std::cout << "State: " << stats.internalState << std::endl;
         std::cout << "===========" << std::endl;
         std::cout << "E-graph classes: " << stats.numRootClasses << std::endl;
         std::cout << "Root classes in hints: " << stats.numRootClassesInHints << std::endl;
@@ -56,7 +57,7 @@ public:
 
     void run()
     {
-        Seed seed;
+        Seed seed; //("ngdkjbke");
         this->generate(seed);
 
         while(!this->shouldStop)
@@ -74,6 +75,6 @@ public:
 
 int main(int argc, char **argv)
 {
-    CLIGame game;
+    CliClient game;
     game.run(); // run.game.run();
 }
