@@ -8,6 +8,7 @@
 
 namespace Parser
 {
+// clang-format off
 namespace Ast
 {
     using namespace tao::pegtl;
@@ -23,23 +24,33 @@ namespace Ast
         string<'~', '>'>, string<'<', '~', '>'>, string<'~', '~', '>'>,
         string<'?'>, string<'!'>, string<'~'>, string<':', ':'>,
         string<'@'>, string<'#'>, string<'$'>, string<'&'>, string<'.'>,
-        // ⇌ ⥢ ⥤ ⥃ ⥄ ⤝ ⤞ ⬷ ⤐ ➻ ⇜ ⇝ ↜ ↝ ↫ ↬ ⬸ ⤑ ⤙ ⤚ ⥈ ⬿ ⤳ ⥊ ⥐ ↽ ⇀ ⤾ ⤿ ⤸ ⤹ ⤻ ∴ ∵ ∷ ∺ ∻ ≀ ⤜
-        utf8::one<0x21cc>, utf8::one<0x2962>, utf8::one<0x2964>, utf8::one<0x2943>,
-        utf8::one<0x2944>, utf8::one<0x291d>, utf8::one<0x291e>, utf8::one<0x2b37>,
-        utf8::one<0x2910>, utf8::one<0x27bb>, utf8::one<0x21dc>, utf8::one<0x21dd>,
-        utf8::one<0x219c>, utf8::one<0x219d>, utf8::one<0x21ab>, utf8::one<0x21ac>,
-        utf8::one<0x2b38>, utf8::one<0x2911>, utf8::one<0x2919>, utf8::one<0x291a>,
-        utf8::one<0x2948>, utf8::one<0x2b3f>, utf8::one<0x2933>, utf8::one<0x294a>,
-        utf8::one<0x2950>, utf8::one<0x21bd>, utf8::one<0x21c0>, utf8::one<0x293e>,
-        utf8::one<0x293f>, utf8::one<0x2938>, utf8::one<0x2939>, utf8::one<0x293b>,
-        utf8::one<0x2234>, utf8::one<0x2235>, utf8::one<0x2237>, utf8::one<0x223a>,
-        utf8::one<0x223b>, utf8::one<0x2240>, utf8::one<0x291c>> {};
+        utf8::one<0x21cc>, utf8::one<0x2962>, utf8::one<0x2964>, // ⇌ ⥢ ⥤
+        utf8::one<0x2943>, utf8::one<0x2944>, // ⥃ ⥄
+        utf8::one<0x291d>, utf8::one<0x291e>, // ⤝ ⤞
+        utf8::one<0x2b37>, utf8::one<0x2910>, // ⬷ ⤐
+        utf8::one<0x21dc>, utf8::one<0x21dd>, // ⇜ ⇝
+        utf8::one<0x219c>, utf8::one<0x219d>, // ↜ ↝
+        utf8::one<0x21ab>, utf8::one<0x21ac>, // ↫ ↬
+        utf8::one<0x2b38>, utf8::one<0x2911>, // ⬸ ⤑
+        utf8::one<0x2919>, utf8::one<0x291a>, // ⤙ ⤚
+        utf8::one<0x294a>, utf8::one<0x2950>, utf8::one<0x21bd>, utf8::one<0x21c0>, // ⥊ ⥐ ↽ ⇀
+        utf8::one<0x293e>, utf8::one<0x293f>, utf8::one<0x2938>, utf8::one<0x2939>, utf8::one<0x293b>, //⤾ ⤿ ⤸ ⤹ ⤻
+        utf8::one<0x2237>, utf8::one<0x2234>, utf8::one<0x2235>, // ∷ ∴ ∵
+        utf8::one<0x2814>, utf8::one<0x2822>, // ⠔ ⠢
+        utf8::one<0x223a>, utf8::one<0x223b>, // ∺ ∻
+        utf8::one<0x2240>, // ≀
+        utf8::one<0x2948>, // ⥈
+        utf8::one<0x291c>, // ⤜
+        utf8::one<0x27bb> // ➻
+        > {};
 
     struct Arrow : string<'=', '>'> {};
     struct Spacing : star<space> {};
 
     struct Expression;
-    struct BracketExpression : if_must<one<'('>, Spacing, Expression, Spacing, one<')'>> {};
+    using OpeningBracket = sor<one<'('>, utf8::one<0xfd3e>>; // ﴾
+    using ClosingBracket = sor<one<')'>, utf8::one<0xfd3f>>; // ﴿
+    struct BracketExpression : if_must<OpeningBracket, Spacing, Expression, Spacing, ClosingBracket> {};
     struct Value : sor<PatternVariable, Term, BracketExpression> {};
 
     template <typename S, typename O>
@@ -58,6 +69,7 @@ namespace Ast
 
     struct Node : basic_node<Node> {};
 } // namespace Ast
+// clang-format on
 
 // if customOperationSymbol is not empty, then all operation names
 // in the expression will be replaced with it, which is useful for describing
@@ -115,6 +127,7 @@ e::Pattern makePattern(const Ast::Node &astNode, const e::Symbol &customOperatio
     }
 
     assert(false);
+    return {};
 }
 
 e::RewriteRule makeRewriteRule(const Ast::Node &astNode, const e::Symbol &customOperationSymbol)

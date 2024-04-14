@@ -18,25 +18,125 @@ public:
     {
         String seed;
 
-        //Vector<Symbol> terms;
-        //Vector<Symbol> operations;
-
         String internalState;
 
         int numRootClasses = 0;
         int numLevels = 0;
 
         int numGenerationAttempts = 0;
-        int generationTimeMs = 0;
     };
 
-    virtual void onShowLevelInfo(const Stats &stats) = 0;
-    virtual void onShowHint(const String &hint) = 0;
-    virtual void onShowQuestion(const String &question) = 0;
-    virtual void onShowError(const String &error) = 0;
-    virtual void onValidateAnswer(bool isValid, int score) = 0;
+    virtual void onQuestGenerationDone(const Stats &stats) = 0;
+
+    virtual void onStartLevel(int levelNumber,
+        const Vector<String> &hints, const String &question,
+        const Vector<String> &suggestions) = 0;
+
+    virtual void onEndLevel(bool passed,
+        const Vector<bool> &answerIndices = {}) = 0;
+
+    virtual void onEndGame(bool win) = 0;
+
+    void validateAnswer(int suggestionIndex)
+    {
+        bool isValidPick = false;
+        Vector<bool> answersIndices;
+        const auto &currentLevel = this->getCurrentLevel();
+
+        for (int i = 0; i < currentLevel.suggestions.size(); ++i)
+        {
+            const auto suggestion = currentLevel.suggestions[i];
+            const bool suggestionIsValidAnswer = this->isValidAnswer(suggestion);
+            
+            isValidPick = isValidPick ||
+                (suggestionIndex == i && suggestionIsValidAnswer);
+
+            answersIndices[i] = suggestionIsValidAnswer;
+        }
+
+        this->onEndLevel(isValidPick, answersIndices);
+
+        if (isValidPick)
+        {
+            this->proceedToLevel(this->currentLevelNumber + 1);
+        }
+        else
+        {
+            this->onEndGame(false);
+        }
+    }
+
+    void validateAnswer(const String &expression)
+    {
+        const bool isValidAnswer = this->isValidAnswer(expression);
+        this->onEndLevel(isValidAnswer);
+
+        if (isValidAnswer)
+        {
+            this->proceedToLevel(this->currentLevelNumber + 1);
+        }
+        else
+        {
+            this->onEndGame(false);
+        }
+    }
+
+    bool isValidAnswer(const String &expression) const
+    {
+        try
+        {
+            const auto pattern = Parser::makePattern(expression);
+            if (!pattern.term)
+            {
+                return false;
+            }
+
+            // shouldn't accept the question itself as an answer:
+            const auto formattedAnswer = Parser::formatPatternTerm(*pattern.term, false);
+            if (this->getCurrentLevel().question->formatted == formattedAnswer) // todo should compare ASTs here instead but whatever
+            {
+                return false;
+            }
+
+            bool isValidAnswer = false;
+            for (const auto &[classId, _classPtr] : this->eGraph.classes)
+            {
+                isValidAnswer = isValidAnswer ||
+                    (classId == this->getCurrentLevel().question->rootId &&
+                        this->matchPatternTerm(*pattern.term, classId));
+            }
+
+            return isValidAnswer;
+        }
+        catch (...) {}
+
+        return false;
+    }
 
 protected:
+
+    const Level &getCurrentLevel() const
+    {
+        assert(this->currentLevelNumber >= 0 && this->currentLevelNumber < this->levels.size());
+        return this->levels[this->currentLevelNumber];
+    }
+
+    void proceedToLevel(int levelNumber)
+    {
+        this->currentLevelNumber = levelNumber;
+        if (this->currentLevelNumber < this->levels.size())
+        {
+            const auto &currentLevel = this->getCurrentLevel();
+            this->onStartLevel(this->currentLevelNumber,
+                {currentLevel.getFormattedHint()},
+                currentLevel.question->formatted + " " + Symbols::equalsSign,
+                currentLevel.suggestions);
+        }
+        else
+        {
+            this->onEndGame(true);
+        }
+    }
 
     void generate(const Seed &seed)
     {
@@ -47,7 +147,6 @@ protected:
         //const auto testSeedDecoding = Seed(stats.seed);
         //const auto testSeedEncoding = testSeedDecoding.encode();
 
-        SteadyClock timer;
         bool hasResult = false;
         int numAttempts = 0;
 
@@ -60,132 +159,22 @@ protected:
             hasResult = generator.tryGenerate(levels);
 
             numAttempts++;
+            assert(numAttempts < 10); // probably stuck forever
         }
 
         stats.numGenerationAttempts = numAttempts;
-        stats.generationTimeMs = timer.getMillisecondsElapsed();
-        stats.numRootClasses = this->eGraph.classes.size();
-        stats.numLevels = levels.size();
+        stats.numRootClasses = int(this->eGraph.classes.size());
+        stats.numLevels = int(levels.size());
 
-        //stats.internalState = Serialization::encode(Serialization::serialize(this->eGraph));
+        this->onQuestGenerationDone(stats);
 
-        this->onShowLevelInfo(stats);
-
-        this->showCurrentLevel();
-    }
-
-    void showCurrentLevel()
-    {
-        const auto &currentLevel = this->levels[this->currentLevelNumber];
-        this->onShowHint(currentLevel.hintLeftHand->formatted + String(" = ") + currentLevel.hintRightHand->formatted);
-        this->onShowQuestion(currentLevel.question->formatted);
-    }
-
-    void validateAnswer(const String &expression)
-    {
-        // debug mode
-        const auto &currentLevel = this->levels[this->currentLevelNumber];
-
-        if (expression.empty())
-        {
-            this->onShowHint("-----------");
-
-            for (const auto &answer : currentLevel.answers)
-            {
-                this->onShowHint(answer->formatted);
-            }
-
-            this->currentLevelNumber++;
-            if (this->currentLevelNumber < this->levels.size())
-            {
-                this->showCurrentLevel();
-            }
-            else
-            {
-                //assert(false); // todo win condition
-            }
-
-            return;
-        }
-
-        try
-        {
-            const auto pattern = Parser::makePattern(expression);
-            if (!pattern.term)
-            {
-                // todo what?
-                return;
-            }
-
-            const auto formattedAnswer = Parser::formatPatternTerm(*pattern.term, false);
-            if (contains(this->acceptedAnswers, formattedAnswer))
-            {
-                // todo give a hint?
-                return;
-            }
-
-            bool isValidAnswer = false;
-            for (const auto &[classId, _classPtr] : this->eGraph.classes)
-            {
-                isValidAnswer = isValidAnswer ||
-                    (classId == currentLevel.question->rootId && this->matchPatternTerm(*pattern.term, classId));
-            }
-
-            if (isValidAnswer)
-            {
-                //this->acceptedAnswers.insert(formattedAnswer);
-                this->score += this->validAnswerScore;
-                this->onValidateAnswer(isValidAnswer, this->score);
-
-                this->currentLevelNumber++;
-                if (this->currentLevelNumber < this->levels.size())
-                {
-                    this->showCurrentLevel();
-                }
-                else
-                {
-                    assert(false); // todo win condition
-                }
-
-                return;
-            }
-
-            this->score += this->failedAttemptScore;
-            this->onValidateAnswer(isValidAnswer, this->score);
-
-            // todo not a valid answer, try to give a hint?
-            /*
-            for (const auto &[classId, _classPtr] : this->eGraph.classes)
-            {
-                if (!this->matchPatternTerm(patternTerm, classId))
-                {
-                    continue;
-                }
-
-                if (!contains(this->hints, classId))
-                {
-                    continue;
-                }
-
-                const auto displayedHints = this->hints[classId];
-                if (auto otherHint = pickHintPair(formattedAnswer, displayedHints))
-                {
-                    this->onShowHint(formattedAnswer + " = " + (*otherHint)->formatted);
-                }
-            }
-            */
-        }
-        catch (const std::exception &e)
-        {
-            this->onShowError(e.what()); // todo something more sensible
-        }
+        this->proceedToLevel(0);
     }
 
 private:
 
     static Optional<Hint::Ptr> pickHintPair(const String &targetFormatted, const Vector<Hint::Ptr> &allHints)
     {
-        // fixme: same logic as in pickHintRightHandSide
         for (const auto &otherHint : allHints)
         {
             if (otherHint->formatted == targetFormatted)
@@ -199,14 +188,15 @@ private:
         return {};
     }
 
-    bool matchPatternTerm(const PatternTerm &patternTerm, ClassId classId)
+    bool matchPatternTerm(const PatternTerm &patternTerm, ClassId classId) const
     {
         const auto rootId = this->eGraph.find(classId);
         assert(contains(this->eGraph.classes, rootId));
 
         for (const auto &term : this->eGraph.classes.at(rootId)->terms)
         {
-            if (term->name != patternTerm.name || term->childrenIds.size() != patternTerm.arguments.size())
+            if (term->name != patternTerm.name ||
+                term->childrenIds.size() != patternTerm.arguments.size())
             {
                 continue;
             }
@@ -231,14 +221,10 @@ private:
 private:
 
     Vector<Level> levels;
+
     int currentLevelNumber = 0;
 
     e::Graph eGraph;
 
     Random random;
-
-    int score = 0;
-    const int failedAttemptScore = -1;
-    const int validAnswerScore = 3;
-    HashSet<String> acceptedAnswers;
 };

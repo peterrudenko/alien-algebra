@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "Common.h"
 #include "Random.h"
@@ -34,17 +34,30 @@ struct Hint final
     int astDepth = 0;
     String formatted;
 
-    HashSet<e::ClassId> usedLeafIds;
+    HashMap<e::ClassId, int> usedLeafIds;
     HashSet<e::Symbol> usedSymbols;
     HashSet<e::Symbol> usedTermSymbols;
     HashSet<e::Symbol> usedOperationSymbols;
 
-    int getNumNewOperations(const HashSet<e::Symbol> &knownOperations)
+    int getNumNewTerms(const HashSet<e::Symbol> &otherTerms)
+    {
+        int result = 0;
+        for (const auto &usedSymbol : this->usedTermSymbols)
+        {
+            if (!contains(otherTerms, usedSymbol))
+            {
+                result++;
+            }
+        }
+        return result;
+    }
+
+    int getNumNewOperations(const HashSet<e::Symbol> &otherOperations)
     {
         int result = 0;
         for (const auto &usedSymbol : this->usedOperationSymbols)
         {
-            if (!contains(knownOperations, usedSymbol))
+            if (!contains(otherOperations, usedSymbol))
             {
                 result++;
             }
@@ -73,6 +86,24 @@ struct Hint final
         this->formatted = Hint::formatNode(this->rootNode, false);
     }
 
+    // used for generating wrong (hopefully) answers by replacing
+    // a random simple node, e.g. a term or a "x . y"-like operation with a symbol
+    void replaceRandomNode(Random &random, const e::Symbol &replacementSymbol)
+    {
+        Vector<AstNode *> replacementCandidates;
+        findReplacementCandidates(this->rootNode, replacementSymbol, replacementCandidates);
+        if (replacementCandidates.empty())
+        {
+            return;
+        }
+
+        auto *replacedNode = random.pickOne(replacementCandidates);
+        replacedNode->name = replacementSymbol;
+        replacedNode->children = {};
+
+        this->collectInfo();
+    }
+
 private:
 
     static String formatNode(const AstNode &node, bool wrapWithBrackets = true)
@@ -82,8 +113,10 @@ private:
         if (node.children.size() == 2)
         {
             const auto result = formatNode(node.children.front()) +
-                                " " + node.name + " " + formatNode(node.children.back());
-            return wrapWithBrackets ? ("(" + result + ")") : result;
+                " " + node.name + " " + formatNode(node.children.back());
+
+            return wrapWithBrackets ?
+                (Symbols::openingBracket + result + Symbols::closingBracket) : result;
         }
 
         return node.name;
@@ -97,6 +130,24 @@ private:
             depth = std::max(depth, getNodeDepth(child));
         }
         return depth + 1;
+    }
+
+    static void findReplacementCandidates(AstNode &node,
+        const e::Symbol &replacementSymbol, Vector<AstNode *> &outResult)
+    {
+        if (node.name != replacementSymbol &&
+            (node.children.empty() ||
+                (node.children.size() == 2 &&
+                    node.children.front().children.empty() &&
+                    node.children.back().children.empty())))
+        {
+            outResult.push_back(&node);
+        }
+
+        for (auto &child : node.children)
+        {
+            findReplacementCandidates(child, replacementSymbol, outResult);
+        }
     }
 };
 
@@ -117,12 +168,12 @@ public:
             // so instead will just pick random routes many times and deduplicate;
             // this class has its own pseudo-random generator with the default seed,
             // so hints collection will always be the same on the same graph.
-            for (int i = 0; i < 256; ++i)
+            for (int i = 0; i < 100; ++i)
             {
                 Hint::Ptr expression = make<Hint>(termPtr->name);
                 expression->rootId = this->eGraph.find(leafId);
 
-                if (this->collectExpressions(expression, expression->rootNode, termPtr))
+                if (this->collectExpressions(expression, expression->rootNode, termPtr, leafId))
                 {
                     expression->collectInfo();
                     expressions[expression->formatted] = expression;
@@ -144,11 +195,12 @@ public:
         return result;
     }
 
-    bool collectExpressions(Hint::Ptr expression, Hint::AstNode &parentAstNode, e::Term::Ptr term)
+    bool collectExpressions(Hint::Ptr expression,
+        Hint::AstNode &parentAstNode, e::Term::Ptr term, e::ClassId termLeafId)
     {
         bool hasResult = true;
 
-        expression->usedLeafIds.insert(this->eGraph.termsLookup.at(term));
+        expression->usedLeafIds[termLeafId]++;
         expression->usedSymbols.insert(term->name);
 
         if (term->childrenIds.empty())
@@ -175,15 +227,17 @@ public:
                     return false;
                 }
 
+
                 const auto randomSubTerm = this->random.pickOne(classPtr->terms);
                 assert(randomSubTerm->childrenIds.size() == 2 || randomSubTerm->childrenIds.empty());
 
                 // I'm not 100% sure if this is a correct condition,
-                // but hopefully it should work: if we've already added that term,
+                // but hopefully it should work: if we've already added that term at least twice,
                 // and it is an operation (i.e. has more sub-terms),
                 // we're likely to end up in a loop. I guess.
+                const auto subTermLeafId = this->eGraph.termsLookup.at(randomSubTerm);
                 const bool isLoop = !randomSubTerm->childrenIds.empty() &&
-                    contains(expression->usedLeafIds, this->eGraph.termsLookup.at(randomSubTerm));
+                    expression->usedLeafIds[subTermLeafId] > 1;
 
                 if (isLoop)
                 {
@@ -192,7 +246,7 @@ public:
 
                 parentAstNode.children.push_back(Hint::AstNode(randomSubTerm->name));
                 hasResult = hasResult && this->collectExpressions(expression,
-                    parentAstNode.children.back(), randomSubTerm);
+                    parentAstNode.children.back(), randomSubTerm, subTermLeafId);
             }
         }
 

@@ -3,18 +3,18 @@ AccessModifierOffset: -4
 AlignAfterOpenBracket: DontAlign
 AllowShortCaseLabelsOnASingleLine: true
 AllowShortFunctionsOnASingleLine: true
-AllowShortEnumsOnASingleLine: true
-AllowShortBlocksOnASingleLine: Empty
-AllowShortLambdasOnASingleLine: Inline
+#AllowShortEnumsOnASingleLine: true
+#AllowShortBlocksOnASingleLine: Empty
+#AllowShortLambdasOnASingleLine: Inline
 BraceWrapping:
   SplitEmptyFunction: false
   SplitEmptyRecord: false
   AfterUnion: true
-  BeforeLambdaBody: true
+#  BeforeLambdaBody: true
 BreakConstructorInitializers: AfterColon
 ColumnLimit: 0
-EmptyLineAfterAccessModifier: Always
-EmptyLineBeforeAccessModifier: Leave
+#EmptyLineAfterAccessModifier: Always
+#EmptyLineBeforeAccessModifier: Leave
 IndentCaseLabels: true
 SortIncludes: false
 NamespaceIndentation: Inner

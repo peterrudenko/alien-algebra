@@ -2,37 +2,50 @@
 
 project(Game CXX)
 
-#set(CMAKE_VERBOSE_MAKEFILE ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_BUILD_TYPE "Debug")
 
 # CLI client
 
-add_executable(CliGame Source/CliClient.cpp)
+if(NOT DEFINED BUILD_WEB_CLIENT)
 
-target_include_directories(CliGame PRIVATE
-        Source
-        ThirdParty/e-graph
-        ThirdParty/cereal/include
-        ThirdParty/pegtl/include)
+    add_executable(CliGame Source/CliClient.cpp)
 
-set_target_properties(CliGame
-        PROPERTIES OUTPUT_NAME "game")
+    target_include_directories(CliGame PRIVATE
+            Source
+            ThirdParty/e-graph
+            ThirdParty/pegtl/include)
+
+    set_target_properties(CliGame
+            PROPERTIES OUTPUT_NAME "game")
+
+endif()
 
 # Web client
 
-add_executable(WebGame Source/WebClient.cpp)
+if(DEFINED BUILD_WEB_CLIENT)
 
-target_include_directories(WebGame PRIVATE
-        Source
-        ThirdParty/e-graph
-        ThirdParty/cereal/include
-        ThirdParty/pegtl/include
-        /opt/cheerp/include/client)
+    add_executable(WebGame Source/WebClient.cpp)
 
-target_compile_options(WebGame PRIVATE
-        "-fexceptions")
+    target_include_directories(WebGame PRIVATE
+            Source
+            ThirdParty/e-graph
+            ThirdParty/pegtl/include
+            /opt/cheerp/include/client
+            c:/cheerp/include/client
+            c:/cheerp/lib/clang/16/include)
 
-set_target_properties(WebGame
-        PROPERTIES OUTPUT_NAME "game.js")
+    target_compile_options(WebGame PRIVATE
+            "-fexceptions"
+            "-Wno-unqualified-std-cast-call"
+            "-Wno-unused-command-line-argument")
+
+    target_compile_definitions(WebGame PRIVATE WEB_CLIENT=1)
+
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -cheerp-no-credits -cheerp-preexecute -target cheerp")
+
+    set_target_properties(WebGame
+            PROPERTIES OUTPUT_NAME "game.js")
+
+endif()

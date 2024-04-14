@@ -1,13 +1,10 @@
-#pragma once
+﻿#pragma once
 
 #include <cassert>
 #include <memory>
 #include <string>
 #include <vector>
 #include <optional>
-#include <limits>
-#include <chrono>
-#include <stack>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -50,20 +47,31 @@ inline bool contains(const C &container, const K &key)
     return container.find(key) != container.end();
 }
 
-class SteadyClock final
+template <typename T>
+inline void append(Vector<T> &v1, const Vector<T> &v2)
 {
-public:
+    v1.insert(v1.end(), v2.begin(), v2.end());
+}
 
-    SteadyClock() = default;
+template <typename T>
+inline void append(HashSet<T> &s1, const HashSet<T> &s2)
+{
+    s1.insert(s2.begin(), s2.end());
+}
 
-    int getMillisecondsElapsed() const
-    {
-        const auto now = std::chrono::steady_clock::now();
-        const auto result = std::chrono::duration_cast<std::chrono::milliseconds>(now - this->startTime).count();
-        return result;
-    }
+namespace Symbols
+{
+#if WEB_CLIENT
 
-private:
+    static const String openingBracket = "\xef\xb4\xbe"; // ﴾
+    static const String closingBracket = "\xef\xb4\xbf"; // ﴿
+    static const String equalsSign = "\xe2\x89\x97"; // ≗
 
-    const std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
-};
+#else
+
+    static const String openingBracket = "(";
+    static const String closingBracket = ")";
+    static const String equalsSign = "=";
+
+#endif
+}
