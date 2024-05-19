@@ -2,7 +2,6 @@
 
 #include "Common.h"
 #include "Random.h"
-#include "Seed.h"
 #include "Parser.h"
 #include "QuestGenerator.h"
 #include "EGraph.h"
@@ -14,26 +13,14 @@ public:
     Game() = default;
     virtual ~Game() = default;
 
-    struct Stats
-    {
-        String seed;
-
-        String internalState;
-
-        int numRootClasses = 0;
-        int numLevels = 0;
-
-        int numGenerationAttempts = 0;
-    };
-
-    virtual void onQuestGenerationDone(const Stats &stats) = 0;
+    virtual void onStartGame() = 0;
 
     virtual void onStartLevel(int levelNumber,
         const Vector<String> &hints, const String &question,
         const Vector<String> &suggestions) = 0;
 
     virtual void onEndLevel(bool passed,
-        const Vector<bool> &answerIndices = {}) = 0;
+        const Vector<bool> &answerIndices) = 0;
 
     virtual void onEndGame(bool win) = 0;
 
@@ -69,7 +56,7 @@ public:
     void validateAnswer(const String &expression)
     {
         const bool isValidAnswer = this->isValidAnswer(expression);
-        this->onEndLevel(isValidAnswer);
+        this->onEndLevel(isValidAnswer, {});
 
         if (isValidAnswer)
         {
@@ -138,15 +125,8 @@ protected:
         }
     }
 
-    void generate(const Seed &seed)
+    void generate()
     {
-        this->random.init(seed.seed);
-
-        Stats stats;
-        stats.seed = seed.encode();
-        //const auto testSeedDecoding = Seed(stats.seed);
-        //const auto testSeedEncoding = testSeedDecoding.encode();
-
         bool hasResult = false;
         int numAttempts = 0;
 
@@ -162,31 +142,11 @@ protected:
             assert(numAttempts < 10); // probably stuck forever
         }
 
-        stats.numGenerationAttempts = numAttempts;
-        stats.numRootClasses = int(this->eGraph.classes.size());
-        stats.numLevels = int(levels.size());
-
-        this->onQuestGenerationDone(stats);
-
+        this->onStartGame();
         this->proceedToLevel(0);
     }
 
 private:
-
-    static Optional<Hint::Ptr> pickHintPair(const String &targetFormatted, const Vector<Hint::Ptr> &allHints)
-    {
-        for (const auto &otherHint : allHints)
-        {
-            if (otherHint->formatted == targetFormatted)
-            {
-                continue;
-            }
-
-            return otherHint;
-        }
-
-        return {};
-    }
 
     bool matchPatternTerm(const PatternTerm &patternTerm, ClassId classId) const
     {

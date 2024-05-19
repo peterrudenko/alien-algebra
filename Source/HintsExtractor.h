@@ -10,7 +10,7 @@
 
 struct Hint final
 {
-    using Ptr = SharedPointer<Hint>;
+    using Ptr = std::shared_ptr<Hint>;
 
     struct AstNode final
     {
@@ -170,7 +170,7 @@ public:
             // so hints collection will always be the same on the same graph.
             for (int i = 0; i < 100; ++i)
             {
-                Hint::Ptr expression = make<Hint>(termPtr->name);
+                Hint::Ptr expression = std::make_shared<Hint>(termPtr->name);
                 expression->rootId = this->eGraph.find(leafId);
 
                 if (this->collectExpressions(expression, expression->rootNode, termPtr, leafId))

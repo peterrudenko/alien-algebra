@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Common.h"
 #include "EGraph.h"
 
 #include "tao/pegtl.hpp"
@@ -18,12 +17,16 @@ namespace Ast
     struct Term : Symbol {};
     struct PatternVariable : seq<one<'$'>, Symbol> {};
     struct Operation : sor<
-        // :> |> -< >- =<< -<< |- -| ~> <~>  ~~> ? ! ~ :: @ # $ & .
-        string<':', '>'>, string<'|', '>'>, string<'-', '<'>, string<'>', '-'>,
-        string<'=', '<', '<'>, string<'-', '<', '<'>, string<'|', '-'>, string<'-', '|'>,
-        string<'~', '>'>, string<'<', '~', '>'>, string<'~', '~', '>'>,
-        string<'?'>, string<'!'>, string<'~'>, string<':', ':'>,
-        string<'@'>, string<'#'>, string<'$'>, string<'&'>, string<'.'>,
+        string<'-', '<'>, string<'>', '-'>,
+        string<'|', '-'>, string<'-', '|'>,
+        string<'~', '>'>, string<'<', '~'>, string<'<', '~', '>'>,
+        string<'-', '/'>, string<'/', '-'>,
+        string<':', '>'>, string<'|', '>'>, string<'/', '>'>,
+        string<'#'>, string<'@'>, string<'$'>, string<'&'>, string<'?'>, string<'!'>,
+        string<'=', '=', '<'>, string<'>', '=', '='>,
+        string<'>', '>', '-'>, string<'-', '<', '<'>,
+        string<'~', '~'>, string<'~'>,
+        string<':' ,':'>, string<'.'>,
         utf8::one<0x21cc>, utf8::one<0x2962>, utf8::one<0x2964>, // ⇌ ⥢ ⥤
         utf8::one<0x2943>, utf8::one<0x2944>, // ⥃ ⥄
         utf8::one<0x291d>, utf8::one<0x291e>, // ⤝ ⤞
@@ -48,8 +51,8 @@ namespace Ast
     struct Spacing : star<space> {};
 
     struct Expression;
-    using OpeningBracket = sor<one<'('>, utf8::one<0xfd3e>>; // ﴾
-    using ClosingBracket = sor<one<')'>, utf8::one<0xfd3f>>; // ﴿
+    using OpeningBracket = sor<one<'('>, utf8::one<0x2e04>>; // ⸄
+    using ClosingBracket = sor<one<')'>, utf8::one<0x2e05>>; // ⸅
     struct BracketExpression : if_must<OpeningBracket, Spacing, Expression, Spacing, ClosingBracket> {};
     struct Value : sor<PatternVariable, Term, BracketExpression> {};
 

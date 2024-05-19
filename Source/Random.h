@@ -9,11 +9,6 @@ public:
 
     Random() = default;
 
-    void init(int seed)
-    {
-        this->rng = std::mt19937(seed);
-    }
-
     bool rollD2()
     {
         return this->getRandomInt(1, 2) == 1;
@@ -125,5 +120,5 @@ public:
 
 private:
 
-    std::mt19937 rng;
+    std::mt19937 rng = std::mt19937(std::random_device{}());
 };

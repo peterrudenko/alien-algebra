@@ -95,7 +95,7 @@ class WebClient final : public Game
 {
 public:
 
-    void onQuestGenerationDone(const Game::Stats &stats) override
+    void onStartGame() override
     {
         this->currentLevel = 0;
     }
@@ -120,8 +120,7 @@ public:
 
     void run()
     {
-        Seed seed;
-        this->generate(seed);
+        this->generate();
     }
 
     int currentLevel = 0;

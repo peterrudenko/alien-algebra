@@ -165,12 +165,12 @@ struct QuestGenerator final
                         append(level.allTermSymbolsInAnswers, hint->usedTermSymbols);
                         append(level.allOperationSymbolsInAnswers, hint->usedOperationSymbols);
 
-                        const auto wrongAnswer = make<Hint>(*hint);
-                        wrongAnswer->replaceRandomNode(this->random,
+                        Hint wrongAnswer(*hint);
+                        wrongAnswer.replaceRandomNode(this->random,
                             this->random.pickOne(level.allTermSymbolsInAnswers));
 
-                        wrongAnswer->collectInfo();
-                        level.wrongAnswers.insert(wrongAnswer->formatted);
+                        wrongAnswer.collectInfo();
+                        level.wrongAnswers.insert(wrongAnswer.formatted);
                     }
                 }
 
@@ -541,18 +541,16 @@ private:
     const Vector<HashSet<Symbol>> allOperations = {
         {"\xe2\x87\x8c", "\xe2\xa5\xa2", "\xe2\xa5\xa4"}, // ⇌ ⥢ ⥤
         {"\xe2\xa5\x83", "\xe2\xa5\x84"}, // ⥃ ⥄
-        {"\xe2\xa4\x9d", "\xe2\xa4\x9e"}, // ⤝ ⤞
-        //{"\xe2\xac\xb7", "\xe2\xa4\x90"}, // ⬷ ⤐
-        //{"\xe2\x87\x9c", "\xe2\x87\x9d"}, // ⇜ ⇝
-        //{"\xe2\x86\x9c", "\xe2\x86\x9d"}, // ↜ ↝
-        {"\xe2\x86\xab", "\xe2\x86\xac"}, // ↫ ↬
+        {"\xe2\xa4\x9d", "\xe2\xa4\x9e", "\xe2\x87\x9c", "\xe2\x87\x9d"}, // ⤝ ⤞ ⇜ ⇝
+        {"\xe2\x86\xab", "\xe2\x86\xac", "\xe2\x86\x9c", "\xe2\x86\x9d"}, // ↫ ↬ ↜ ↝
         {"\xe2\xac\xb8", "\xe2\xa4\x91"}, // ⬸ ⤑
         {"\xe2\xa4\x99", "\xe2\xa4\x9a", "\xe2\xa4\x9c"}, // ⤙ ⤚ ⤜
         {"\xe2\xa5\x8a", "\xe2\xa5\x90", "\xe2\x86\xbd", "\xe2\x87\x80"}, // ⥊ ⥐ ↽ ⇀
         {"\xe2\xa4\xbe", "\xe2\xa4\xbf", "\xe2\xa4\xb8", "\xe2\xa4\xb9", "\xe2\xa4\xbb"}, // ⤾ ⤿ ⤸ ⤹ ⤻
-        {"\xe2\x88\xb7", "\xe2\x88\xb4", "\xe2\x88\xb5"}, // ∷ ∴ ∵
+        {"\xe2\x88\xb4", "\xe2\x88\xb5"}, // ∴ ∵
         {"\xe2\xa0\x94", "\xe2\xa0\xa2"}, // ⠔ ⠢
         {"\xe2\x88\xba", "\xe2\x88\xbb"}, // ∺ ∻
+        //{"\xe2\xac\xb7", "\xe2\xa4\x90"}, // ⬷ ⤐
         {"\xe2\x89\x80"}, // ≀
         //{"\xe2\xa5\x88"}, // ⥈
         //{"\xe2\x9e\xbb"} // ➻
@@ -566,8 +564,19 @@ private:
     };
 
     const Vector<HashSet<Symbol>> allOperations = {
-        {":>", "|>"}, {"-<", ">-"}, {"=<<", "-<<"}, {"|-", "-|"}, {"~>"},
-        {"?"}, {"!"}, {"~"}, {"::"}, {"@"}, {"#"}, {"$"}, {"&"}, {"."}
+        {"~~", "~"},
+        {"-<", ">-"},
+        {"|-", "-|"},
+        {"~>", "<~", "<~>"},
+        {"-/", "/-"},
+        {":>", "|>", "/>"},
+        {"#", "@"},
+        {"$", "&"},
+        {"?", "!"},
+        {"==<", ">=="},
+        {">>-", "-<<"},
+        {"::"},
+        {"."}
     };
 
 #endif

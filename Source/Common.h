@@ -1,7 +1,6 @@
 ﻿#pragma once
 
 #include <cassert>
-#include <memory>
 #include <string>
 #include <vector>
 #include <optional>
@@ -9,20 +8,6 @@
 #include <unordered_set>
 
 using String = std::string;
-
-template <typename T>
-using UniquePointer = std::unique_ptr<T>;
-
-template <typename T>
-using SharedPointer = std::shared_ptr<T>;
-
-template <typename T, typename... Args>
-inline UniquePointer<T> make(Args &&...args)
-{
-    return UniquePointer<T>(new T(std::forward<Args>(args)...));
-}
-
-using std::move;
 
 template <typename T>
 using Vector = std::vector<T>;
@@ -36,10 +21,7 @@ using HashSet = std::unordered_set<K, H, E>;
 template <typename T>
 using Optional = std::optional<T>;
 
-using uint8 = uint8_t;
-using uint16 = uint16_t;
-using uint32 = uint32_t;
-using uint64 = uint64_t;
+using std::move;
 
 template <typename C, typename K>
 inline bool contains(const C &container, const K &key)
@@ -63,9 +45,9 @@ namespace Symbols
 {
 #if WEB_CLIENT
 
-    static const String openingBracket = "\xef\xb4\xbe"; // ﴾
-    static const String closingBracket = "\xef\xb4\xbf"; // ﴿
-    static const String equalsSign = "\xe2\x89\x97"; // ≗
+    static const String openingBracket = "\xe2\xb8\x84"; // ⸄
+    static const String closingBracket = "\xe2\xb8\x85"; // ⸅
+    static const String equalsSign = "\xe2\x89\x91"; // ≑
 
 #else
 
